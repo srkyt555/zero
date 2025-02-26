@@ -20,7 +20,7 @@ admin_id = ["1232047106"]
 
 # Group and channel details
 GROUP_ID = "-1002322006686"
-CHANNEL_USERNAME = "@OWNERSRK"
+CHANNEL_USERNAME = "@freeddos"
 
 # Default cooldown and attack limits
 COOLDOWN_TIME = 10  # Cooldown in seconds
