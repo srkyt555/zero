@@ -20,7 +20,7 @@ admin_id = ["1232047106"]
 
 # Group and channel details
 GROUP_ID = "-1002322006686"
-CHANNEL_USERNAME = "@https://t.me/srkddos"
+CHANNEL_USERNAME = "@srkddos"
 
 # Default cooldown and attack limits
 COOLDOWN_TIME = 10  # Cooldown in seconds
