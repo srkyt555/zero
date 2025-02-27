@@ -165,7 +165,7 @@ def handle_attack(message):
 
     pending_feedback[user_id] = True  
 
-    full_command = f"./RAGNAROK", ip, port, time, cracks]
+    full_command = f"./RAGNAROK", ip, port, time, cracks
 
 
     try:
