@@ -165,7 +165,7 @@ def handle_attack(message):
 
     pending_feedback[user_id] = True  
 
-    full_command = f"./Moin {target} {port} {time}"
+    full_command = f""./Moin {target} {port} {time_duration}"
 
     try:
         subprocess.run(full_command, shell=True, check=True)
