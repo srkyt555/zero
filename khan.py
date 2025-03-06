@@ -17,9 +17,9 @@ authorized_users = set([ADMIN_ID])
 
 # Fun welcome messages
 welcome_messages = [
-    f"Ae bhai! {OWNERSRK} ka bot idhar hai!",
-    f"{OWNERSRK} ka bot aa gaya!",
-    f"Yo! {OWNERSRK} ke bot me swagat hai!"
+    f"Ae bhai! {OWNER_NAME} ka bot idhar hai!",
+    f"{OWNER_NAME} ka bot aa gaya!",
+    f"Yo! {OWNER_NAME} ke bot me swagat hai!"
 ]
 
 # Short and savage replies
